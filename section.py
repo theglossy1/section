@@ -12,15 +12,16 @@ See https://www.cisco.com/en/US/products/sw/iosswrel/ps1835/products_configurati
 import sys, os, re
 
 # if insufficient parameters are specified
-if len(sys.argv) < 3:
+if len(sys.argv) < 2:
     program = sys.argv[0]
     if hasattr(sys, '_MEIPASS'):
         program = sys.executable
     print("Read a Cisco configuration file and interpret it the same as:")
     print("  show command output | section <pattern-to-match>\n")
-    print(f'Syntax: {program} <filename> "<pattern-to-match>"\n')
+    print(f'Syntax: {program} "pattern to match" [filename]\n')
     print("  quotes are required if pattern has spaces\n")
-    print(f'Example: {program} core9500.cfg "^interface Vlan10_"')
+    print(f'Example: {program} "^interface Vlan10_" core9500.cfg\n')
+    print("If filename is not specified, it will read from STDIN")
     sys.exit(1)
 
 def ctrlc(type,*args):
@@ -33,28 +34,33 @@ def ctrlc(type,*args):
 
 sys.excepthook = ctrlc
 
-filepath = sys.argv[1]
+if (len(sys.argv) > 2):
+    # if a wildcard was used to specify a file
+    if "*" in sys.argv[2] or "?" in sys.argv[2]:
+        from glob import glob
+        filepath = glob(sys.argv[2])[0]
+        print(f"Processing {filepath}\n-----")
+    else:
+        filepath = sys.argv[2]
 
-# if a wildcard was used to specify a file
-if "*" in filepath or "?" in filepath:
-    from glob import glob
-    filepath = glob(filepath)[0]
-    print(f"Processing {filepath}\n-----")
-
-# if the specified file is not found or is not a file
-if not os.path.isfile(filepath):
-    print(f"File '{filepath}' does not exist.")
+if not 'filepath' in locals():
+    # File not specified; read from stdin
+    file = sys.stdin
+elif not os.path.isfile(filepath):
+    # File specified but not found
+    print(f"File {filepath} not found")
     sys.exit(1)
+else:
+    # File specified and found
+    file = open(filepath)
 
-file = open(filepath)
 try:
     file_list = list(file)
 except UnicodeDecodeError:
     print(f"'{filepath}' appears to be a binary file. Only text files are supported.")
     sys.exit(1)
 
-#search_string = sys.argv[2].replace("_","([_}{,\)\()(\s]|^|$)")
-search_string = sys.argv[2].replace("_","([_\)\({},\s]|^|$)")
+search_string = sys.argv[1].replace("_","([_\)\({},\s]|^|$)")
 
 verbose = True
 if verbose:
