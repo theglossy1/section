@@ -13,9 +13,7 @@ import sys, os, re
 
 # if insufficient parameters are specified
 if len(sys.argv) < 2:
-    program = sys.argv[0]
-    if hasattr(sys, '_MEIPASS'):
-        program = sys.executable
+    program = "section"
     print("Read a Cisco configuration file and interpret it the same as:")
     print("  show command output | section <pattern-to-match>\n")
     print(f'Syntax: {program} "pattern to match" [filename]\n')
