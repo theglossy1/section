@@ -5,22 +5,26 @@ Read a Cisco configuration file and interpret it the same as:
 This uses Python's "re" module adapted to Cisco's regex parser... it is not a
 perfect match. Be particularly careful when using the _ character, though it
 generally works fine.
-
-See https://www.cisco.com/en/US/products/sw/iosswrel/ps1835/products_configuration_guide_chapter09186a00803479f1.html
 """
 
-import sys, os, re
+import sys, os, re, argparse
 
-# if insufficient parameters are specified
-if len(sys.argv) < 2:
-    program = "section"
-    print("Read a Cisco configuration file and interpret it the same as:")
-    print("  show command output | section <pattern-to-match>\n")
-    print(f'Syntax: {program} "pattern to match" [filename]\n')
-    print("  quotes are required if pattern has spaces\n")
-    print(f'Example: {program} "^interface Vlan10_" core9500.cfg\n')
-    print("If filename is not specified, it will read from STDIN")
-    sys.exit(1)
+parser = argparse.ArgumentParser(
+    description="Read a Cisco configuration file and interpret it the same as:\n  show command output | section <pattern-to-match>\n\nWorks great for displaying chunks of Python programs too!",
+    usage='%(prog)s [options] "pattern to match" [filename]', formatter_class=argparse.RawTextHelpFormatter
+)
+parser.add_argument("search_string", metavar="pattern-to-match", help="pattern to match; quotes are required if pattern contains spaces; supports regex")
+parser.add_argument("file", metavar='filename', nargs="?", type=argparse.FileType('r'), default=sys.stdin, help="file to read from; if not specified, read from STDIN")
+parser.add_argument("-i","--ignore-case", action="store_true", dest="ignore_case", help="ignore case distinctions")
+parser.add_argument("-m","--max-count", metavar="NUM", dest="max_count", type=int, default=0, help="stop after NUM matches")
+parser.add_argument("-n","--line-number", action="store_true", dest="print_line_num", help="print line number with output lines")
+parser.add_argument("-b","--add-blank", action="store_true", dest="blank_line", help="add a blank line between matched sections for readability")
+parser.add_argument("-v","--verbose", action="store_true", dest="verbose", help="show pattern that will be matched")
+
+args = parser.parse_args()
+
+# convert argparse variables to globals
+globals().update(vars(args))
 
 def ctrlc(type,*args):
     "Ctrl+C handler"
@@ -32,25 +36,12 @@ def ctrlc(type,*args):
 
 sys.excepthook = ctrlc
 
-if (len(sys.argv) > 2):
-    # if a wildcard was used to specify a file
-    if "*" in sys.argv[2] or "?" in sys.argv[2]:
-        from glob import glob
-        filepath = glob(sys.argv[2])[0]
-        print(f"Processing {filepath}\n-----")
-    else:
-        filepath = sys.argv[2]
-
-if not 'filepath' in locals():
-    # File not specified; read from stdin
-    file = sys.stdin
-elif not os.path.isfile(filepath):
-    # File specified but not found
-    print(f"File {filepath} not found")
-    sys.exit(1)
-else:
-    # File specified and found
-    file = open(filepath)
+def printout(line_to_print):
+    try:
+        if print_line_num: print(f'{i+1}:{line_to_print}')
+        else: print(line_to_print)
+    except BrokenPipeError:
+        sys.exit(0)
 
 try:
     file_list = list(file)
@@ -58,18 +49,20 @@ except UnicodeDecodeError:
     print(f"'{filepath}' appears to be a binary file. Only text files are supported.")
     sys.exit(1)
 
-search_string = sys.argv[1].replace("_","([_\)\({},\s]|^|$)")
+# convert the _ to Cisco match methodology:
+# see https://www.cisco.com/en/US/products/sw/iosswrel/ps1835/products_configuration_guide_chapter09186a00803479f1.html
+search_string = search_string.replace("_","([_\)\({},\s]|^|$)")
 
-verbose = True
 if verbose:
-    print(f"Interpreted search string: {search_string}\n")
+    print(f"! Interpreted search string: {search_string}\n")
 
 i = 0
+count = 0
 while i < len(file_list):
     line = file_list[i].rstrip()
-    #search_string = sys.argv[2].replace("_","([_}{,\)\()(\s]|^|$)")
     try:
-        matched = re.search(rf'{search_string}',line)
+        if ignore_case: matched = re.search(rf'{search_string}',line,re.I)
+        else: matched = re.search(rf'{search_string}',line)
     except re.error as err:
         print(search_string)
         error_pos = re.search(r'([0-9]+)$',str(err)).group(0)
@@ -77,9 +70,11 @@ while i < len(file_list):
         print(f"Error compiling regular expression: {err}")
         sys.exit(1)
 
-    if matched is not None:
+    if matched is not None and (max_count == 0 or count < max_count):
         matched_line = line
-        print(matched_line)
+        if max_count > 0: count += 1
+        printout(matched_line)
+        matched_line_nonwhitespace_index = re.search(r'\S',matched_line)
         while True:
             i += 1
             try:
@@ -87,12 +82,12 @@ while i < len(file_list):
             except IndexError:
                 # end-of-file was reached
                 sys.exit(0)
-            current_line_whitespace_index = re.search(r'\S',current_line)
-            matched_line_whitespace_index = re.search(r'\S',matched_line)
-            if current_line_whitespace_index is not None and matched_line_whitespace_index is not None:
-                if re.search(r'\S',current_line).start() > re.search(r'\S',matched_line).start():
-                    print(current_line)
+            current_line_nonwhitespace_index = re.search(r'\S',current_line)
+            if current_line_nonwhitespace_index is not None and matched_line_nonwhitespace_index is not None:
+                if current_line_nonwhitespace_index.start() > matched_line_nonwhitespace_index.start():
+                    printout(current_line)
                 else:
                     break
+        if blank_line: print()
         continue
     i += 1
