@@ -11,6 +11,7 @@ Examples:
 * ```python3 section.py "^interface Vlan10_" core9500.cfg```
 * ```cat core9500.cfg | python3 section.py "^interface Vlan10_"```
 
+```
 Usage: section [options] "pattern to match" [filename]
 
 positional arguments:
@@ -25,3 +26,4 @@ optional arguments:
   -n, --line-number     print line number with output lines
   -b, --add-blank       add a blank line between matched sections for readability
   -v, --verbose         show pattern that will be matched
+```
