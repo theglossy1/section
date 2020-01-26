@@ -1,6 +1,6 @@
 """
-Read a Cisco configuration file and interpret it the same as:
-  show command output | section <pattern-to-match>
+Read a "sectionized" output (e.g., from "ipconfig /all" on Windows or from Cisco IOS) and interpret it the same as:
+    show command output | section <pattern-to-match>
 
 This uses Python's "re" module adapted to Cisco's regex parser... it is not a
 perfect match. Be particularly careful when using the _ character, though it
@@ -9,8 +9,10 @@ generally works fine.
 
 import sys, os, re, argparse
 
+__version__ = '1.11'
+
 parser = argparse.ArgumentParser(
-    description="Read a Cisco configuration file and interpret it the same as:\n  show command output | section <pattern-to-match>\n\nWorks great for displaying chunks of Python programs too!",
+    description=__doc__,
     usage='%(prog)s [options] "pattern to match" [filename]', formatter_class=argparse.RawTextHelpFormatter
 )
 parser.add_argument("search_string", metavar="pattern-to-match", help="pattern to match; quotes are required if pattern contains spaces; supports regex")
@@ -20,7 +22,7 @@ parser.add_argument("-m","--max-count", metavar="NUM", dest="max_count", type=in
 parser.add_argument("-n","--line-number", action="store_true", dest="print_line_num", help="print line number with output lines")
 parser.add_argument("-b","--add-blank", action="store_true", dest="blank_line", help="add a blank line between matched sections for readability")
 parser.add_argument("-v","--verbose", action="store_true", dest="verbose", help="show pattern that will be matched")
-
+parser.add_argument("-V","--version", action="version", version=f"%(prog)s {__version__}", help="show current version")
 args = parser.parse_args()
 
 # convert argparse variables to globals
